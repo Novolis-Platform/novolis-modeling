@@ -13,6 +13,13 @@ public sealed class SceneEvaluator
     private int _lookGeneration;
     private int _builtMeshGeneration = -1;
     private int _builtLookGeneration = -1;
+    private MeshEvaluationOptions _meshOptions = MeshEvaluationOptions.Default;
+    private Dictionary<Guid, Matrix4x4> _worlds = [];
+    private IReadOnlyList<EvaluatedNode> _meshNodes = [];
+    private IReadOnlyList<EvaluatedMesh> _evaluatedMeshes = [];
+    private IReadOnlyList<EvaluatedNode> _lights = [];
+    private IReadOnlyList<EvaluatedNode> _cameras = [];
+    private IReadOnlyList<EvaluatedNode> _materials = [];
 
     public LookCache Cache => EnsureBuilt();
 
@@ -21,6 +28,17 @@ public sealed class SceneEvaluator
 
     /// <summary>Advances when lights/cameras/materials change.</summary>
     public int LookGeneration => _lookGeneration;
+
+    /// <summary>Quality and attribute policy used for the next mesh evaluation.</summary>
+    public MeshEvaluationOptions MeshOptions
+    {
+        get => _meshOptions;
+        set
+        {
+            _meshOptions = value ?? throw new ArgumentNullException(nameof(value));
+            InvalidateMesh();
+        }
+    }
 
     public void Bind(SceneDocument document)
     {
@@ -52,59 +70,69 @@ public sealed class SceneEvaluator
         if (_document is null)
             return _cache;
 
-        if (_builtMeshGeneration == _meshGeneration && _builtLookGeneration == _lookGeneration)
+        var meshChanged = _builtMeshGeneration != _meshGeneration;
+        var lookChanged = _builtLookGeneration != _lookGeneration;
+        if (!meshChanged && !lookChanged)
             return _cache;
 
-        var worlds = BuildWorldMatrices(_document);
-        var meshNodes = new List<EvaluatedNode>();
-        var lights = new List<EvaluatedNode>();
-        var cameras = new List<EvaluatedNode>();
-        var materials = new List<EvaluatedNode>();
-
-        foreach (var node in _document.Nodes)
+        if (meshChanged)
         {
-            if (!node.Visible || !worlds.TryGetValue(node.Id, out var m))
-                continue;
-
-            var evaluated = new EvaluatedNode
-            {
-                Source = node,
-                WorldMatrix = m,
-                WorldPosition = Vector3.Transform(Vector3.Zero, m),
-            };
-
-            switch (node)
-            {
-                case MeshNode:
-                    meshNodes.Add(evaluated);
-                    break;
-                case LightNode:
-                    lights.Add(evaluated);
-                    break;
-                case CameraNode:
-                    cameras.Add(evaluated);
-                    break;
-                case MaterialNode:
-                    materials.Add(evaluated);
-                    break;
-            }
+            _worlds = BuildWorldMatrices(_document);
+            _meshNodes = EvaluateNodes<MeshNode>(_document, _worlds);
+            _evaluatedMeshes = MeshStackEvaluator.EvaluateDocument(
+                _document,
+                _worlds,
+                _meshOptions);
         }
 
-        var evaluatedMeshes = MeshStackEvaluator.EvaluateDocument(_document, worlds);
+        if (meshChanged || lookChanged)
+        {
+            _lights = EvaluateNodes<LightNode>(_document, _worlds);
+            _cameras = EvaluateNodes<CameraNode>(_document, _worlds);
+            _materials = EvaluateNodes<MaterialNode>(_document, _worlds);
+            _meshNodes ??= [];
+        }
 
         _cache = new LookCache
         {
-            Meshes = meshNodes,
-            EvaluatedMeshes = evaluatedMeshes,
-            Lights = lights,
-            Cameras = cameras,
-            Materials = materials,
+            Meshes = _meshNodes,
+            EvaluatedMeshes = _evaluatedMeshes,
+            Lights = _lights,
+            Cameras = _cameras,
+            Materials = _materials,
             MeshGeneration = _meshGeneration,
             LookGeneration = _lookGeneration,
         };
         _builtMeshGeneration = _meshGeneration;
         _builtLookGeneration = _lookGeneration;
         return _cache;
+    }
+
+    private static IReadOnlyList<EvaluatedNode> EvaluateNodes<TNode>(
+        SceneDocument document,
+        IReadOnlyDictionary<Guid, Matrix4x4> worlds)
+        where TNode : SceneNode
+    {
+        var result = new List<EvaluatedNode>();
+        foreach (var node in document.Nodes)
+        {
+            if (node is not TNode ||
+                !node.Visible ||
+                !worlds.TryGetValue(node.Id, out var world))
+            {
+                continue;
+            }
+
+            result.Add(
+                new EvaluatedNode
+                {
+                    Source = node,
+                    WorldMatrix = world,
+                    WorldPosition = Vector3.Transform(Vector3.Zero, world),
+                });
+        }
+
+        return result;
     }
 
     internal static Dictionary<Guid, Matrix4x4> BuildWorldMatrices(SceneDocument doc)

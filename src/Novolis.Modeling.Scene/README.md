@@ -27,6 +27,21 @@ var evaluator = new SceneEvaluator();
 evaluator.Bind(doc);
 ```
 
+## Evaluated mesh data
+
+`SceneEvaluator.Cache.EvaluatedMeshes` returns the existing indexed
+position/index/world values plus optional renderer-neutral mesh attributes.
+Default evaluation deterministically supplies normals, tangents, planar UVs,
+topology/adjacency, bounds, quality, readiness, and semantic/cache metadata.
+Curvature, cavity, material slots, and LOD are opt-in through
+`MeshQualityProfile` and the `EvaluatedMesh.FromEditable` overloads.
+Scene evaluation can use the same policy through `SceneEvaluator.MeshOptions`.
+
+Geometry and appearance readiness are reported separately. Use
+`MeshContractValidator.ValidateAppearanceOnly` before applying an
+appearance-only contract; the validator derives available attributes from the
+actual evaluated data and rejects claims about omitted geometry.
+
 ## Related
 
 | Package / app | Notes |

@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Folder Name="/src/Novolis.Modeling.Scene/Contracts/" />
     <Project Path="src/Novolis.Modeling.Scene/Novolis.Modeling.Scene.csproj" />
     <Project Path="src/Novolis.Modeling.Import.Assimp/Novolis.Modeling.Import.Assimp.csproj" />
   </Folder>

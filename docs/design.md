@@ -45,6 +45,26 @@ welding, splitting, topology, primitive tessellation, and geometric picking.
 Modeling composes those operations into a scene; it does not create a duplicate
 mesh-algorithm façade.
 
+`Novolis.Modeling.Scene` owns the evaluated mesh boundary. `EvaluatedMesh`
+retains the existing position/index/world contract and adds optional normals,
+tangents, UVs, material slots, curvature, cavity, topology, adjacency, bounds,
+LOD, quality, readiness, and deterministic metadata. `MeshAttributeGenerator`
+provides deterministic CPU normal, tangent, UV, curvature, and cavity passes;
+the generated values remain renderer-neutral.
+
+`MeshQualityProfile` controls which optional values are generated and whether
+topology/adjacency and a deterministic LOD reduction are requested.
+`MeshEvaluationMetadata` separates geometry hashes from full semantic hashes and
+includes the contract, mesher, modifier, quality, LOD, and attribute inputs in
+the cache identity. Local geometry hashes intentionally exclude source IDs and
+world placement.
+
+Readiness is split into geometry and appearance stages. A mesh can be
+geometry-ready while an intentionally reduced quality profile omits normals or
+UVs. `MeshContractValidator` derives available attributes from actual arrays
+and topology, so appearance-only operations cannot report omitted geometry or
+silently claim a geometry change.
+
 ## Document authority
 
 Generic 3D products may author and persist `SceneDocument`. CAD and ship

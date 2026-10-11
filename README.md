@@ -70,6 +70,25 @@ The repository owns the renderer-neutral scene domain. UI controls live in
 `Novolis.Modeling.Import.Assimp` translates foreign asset files. Neither package
 depends on Avalonia, rendering, simulation, CAD, or application hosts.
 
+## Mesh contract
+
+`Novolis.Modeling.Scene` owns the additive `EvaluatedMesh` contract used between
+model evaluation and later adapters. An evaluated mesh always retains its
+positions, indices, and world transform; normals, tangents, UVs, material slots,
+curvature, cavity, topology, and adjacency are optional attributes.
+
+`MeshQualityProfile` and `MeshEvaluationOptions` select deterministic CPU
+generation, topology construction, and LOD. `MeshBounds`, `MeshReadiness`,
+`MeshEvaluationMetadata`, `MeshSemanticHasher`, and `MeshCacheKey` provide
+renderer-neutral bounds, explicit geometry-versus-appearance readiness, and
+stable cache identity. `MeshContractValidator.ValidateAppearanceOnly` rejects
+missing required attributes and any appearance-only operation that claims a
+geometry change.
+
+Semantic hashes cover local mesh data and optional attributes, not the world
+transform or source identifier. This keeps equivalent evaluated geometry
+shareable while leaving placement to the scene evaluator.
+
 ## Build
 
 ```powershell

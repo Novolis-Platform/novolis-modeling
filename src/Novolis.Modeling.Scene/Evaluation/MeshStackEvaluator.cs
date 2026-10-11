@@ -8,7 +8,8 @@ public static class MeshStackEvaluator
 {
     public static IReadOnlyList<EvaluatedMesh> EvaluateDocument(
         SceneDocument document,
-        IReadOnlyDictionary<Guid, Matrix4x4> worlds)
+        IReadOnlyDictionary<Guid, Matrix4x4> worlds,
+        MeshEvaluationOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(worlds);
@@ -41,7 +42,12 @@ public static class MeshStackEvaluator
                     {
                         var instance = source.Clone();
                         var world = Matrix4x4.CreateTranslation(offset * i) * srcWorld;
-                        results.Add(EvaluatedMesh.FromEditable(gen.Id, instance, world));
+                        results.Add(EvaluatedMesh.FromEditable(
+                            gen.Id,
+                            instance,
+                            world,
+                            options,
+                            MaterialSlotsFor(document, sid, instance.TriangleCount, options)));
                     }
 
                     consumedAsOperand.Add(sid);
@@ -52,7 +58,12 @@ public static class MeshStackEvaluator
                     if (gen.SourceId is not { } sid || !baseMeshes.TryGetValue(sid, out var source))
                         break;
                     worlds.TryGetValue(sid, out var srcWorld);
-                    results.Add(EvaluatedMesh.FromEditable(gen.Id, source.Clone(), srcWorld));
+                    results.Add(EvaluatedMesh.FromEditable(
+                        gen.Id,
+                        source.Clone(),
+                        srcWorld,
+                        options,
+                        MaterialSlotsFor(document, sid, source.TriangleCount, options)));
                     var mirror = gen.Axis.ToLowerInvariant() switch
                     {
                         "y" => Matrix4x4.CreateScale(1, -1, 1),
@@ -60,7 +71,12 @@ public static class MeshStackEvaluator
                         _ => Matrix4x4.CreateScale(-1, 1, 1),
                     };
                     var mirrored = source.Clone();
-                    results.Add(EvaluatedMesh.FromEditable(gen.Id, mirrored, mirror * srcWorld));
+                    results.Add(EvaluatedMesh.FromEditable(
+                        gen.Id,
+                        mirrored,
+                        mirror * srcWorld,
+                        options,
+                        MaterialSlotsFor(document, sid, mirrored.TriangleCount, options)));
                     consumedAsOperand.Add(sid);
                     break;
                 }
@@ -87,7 +103,12 @@ public static class MeshStackEvaluator
                         _ => MeshBooleanKind.Difference,
                     };
                     var result = MeshBoolean.Apply(left, right, kind);
-                    results.Add(EvaluatedMesh.FromEditable(gen.Id, result, Matrix4x4.Identity));
+                    results.Add(EvaluatedMesh.FromEditable(
+                        gen.Id,
+                        result,
+                        Matrix4x4.Identity,
+                        options,
+                        MaterialSlotsFor(document, targetId.Value, result.TriangleCount, options)));
                     consumedAsOperand.Add(targetId.Value);
                     consumedAsOperand.Add(cutterId.Value);
                     break;
@@ -107,7 +128,12 @@ public static class MeshStackEvaluator
                 work = ApplyModifier(work, mod);
 
             worlds.TryGetValue(meshId, out var world);
-            results.Add(EvaluatedMesh.FromEditable(meshId, work, world));
+            results.Add(EvaluatedMesh.FromEditable(
+                meshId,
+                work,
+                world,
+                options,
+                MaterialSlotsFor(document, meshId, work.TriangleCount, options)));
         }
 
         // Orphan modifiers whose InputId is a generator result are skipped in v1.
@@ -143,4 +169,17 @@ public static class MeshStackEvaluator
                     : mesh.Clone(),
             _ => mesh.Clone(),
         };
+
+    private static int[]? MaterialSlotsFor(
+        SceneDocument document,
+        Guid sourceId,
+        int triangleCount,
+        MeshEvaluationOptions? options)
+    {
+        if (options?.Quality.IncludeMaterialSlots == false)
+            return null;
+        return document.Find(sourceId) is MeshNode { MaterialId: not null }
+            ? Enumerable.Repeat(0, triangleCount).ToArray()
+            : null;
+    }
 }
