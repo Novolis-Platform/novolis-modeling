@@ -2,7 +2,7 @@
   <PropertyGroup>
     <PackageId>Novolis.Modeling.Import.Assimp</PackageId>
     <IsPackable>true</IsPackable>
-    <Description>Assimp-based FBX, OBJ, and glTF import into Novolis.Math.Geometry meshes and Modeling asset data. Native Assimp runtime required.</Description>
+    <Description>Assimp-based FBX, OBJ, and glTF import/export for Novolis.Math.Geometry meshes. Native Assimp runtime required.</Description>
     <RootNamespace>Novolis.Modeling</RootNamespace>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
