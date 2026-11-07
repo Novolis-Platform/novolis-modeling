@@ -112,16 +112,13 @@ public static class AssimpMeshExporter
             return null;
 
         using var ctx = new AssimpContext();
-        var formats = ctx.GetSupportedExportFormats();
-        if (formats is null || formats.Length == 0)
-            return null;
-
+        var formats = ctx.GetSupportedExportFormats() ?? [];
         var want = ext.TrimStart('.').ToLowerInvariant();
-        // Prefer modern binary glTF / binary FBX when several match.
+
         ExportFormatDescription? Prefer(Func<ExportFormatDescription, bool> pred) =>
             formats.FirstOrDefault(pred);
 
-        return want switch
+        var fromCatalog = want switch
         {
             "glb" => Prefer(f => f.FileExtension.Equals("glb", StringComparison.OrdinalIgnoreCase)
                                  || f.FormatId.Contains("glb", StringComparison.OrdinalIgnoreCase))
@@ -129,15 +126,40 @@ public static class AssimpMeshExporter
             "gltf" => Prefer(f => f.FileExtension.Equals("gltf", StringComparison.OrdinalIgnoreCase)
                                   || f.FormatId.Contains("gltf", StringComparison.OrdinalIgnoreCase))
                 ?.FormatId,
-            "fbx" => Prefer(f => f.FormatId.Contains("fbx", StringComparison.OrdinalIgnoreCase)
-                                 && f.FormatId.Contains("binary", StringComparison.OrdinalIgnoreCase))
-                ?.FormatId
-                ?? Prefer(f => f.FileExtension.Equals("fbx", StringComparison.OrdinalIgnoreCase)
-                               || f.FormatId.Contains("fbx", StringComparison.OrdinalIgnoreCase))
-                    ?.FormatId,
+            "fbx" => Prefer(f => f.FormatId.Contains("fbx", StringComparison.OrdinalIgnoreCase))
+                ?.FormatId,
+            "dae" => Prefer(f => f.FileExtension.Equals("dae", StringComparison.OrdinalIgnoreCase)
+                                 || f.FormatId.Contains("collada", StringComparison.OrdinalIgnoreCase))
+                ?.FormatId,
             _ => Prefer(f => f.FileExtension.Equals(want, StringComparison.OrdinalIgnoreCase))
                 ?.FormatId,
         };
+        if (fromCatalog is not null)
+            return fromCatalog;
+
+        // Assimp builds often omit FBX export (SDK license). Try known ids before giving up.
+        return want switch
+        {
+            "fbx" => FirstWorkingExportId(ctx, ["fbx", "fbxa", "fbxb"]),
+            "glb" => FirstWorkingExportId(ctx, ["glb2", "glb"]),
+            "gltf" => FirstWorkingExportId(ctx, ["gltf2", "gltf"]),
+            "dae" => FirstWorkingExportId(ctx, ["collada", "dae"]),
+            "obj" => FirstWorkingExportId(ctx, ["obj"]),
+            "stl" => FirstWorkingExportId(ctx, ["stlb", "stl"]),
+            _ => null,
+        };
+    }
+
+    private static string? FirstWorkingExportId(AssimpContext ctx, IEnumerable<string> candidates)
+    {
+        var supported = ctx.GetSupportedExportFormats() ?? [];
+        foreach (var id in candidates)
+        {
+            if (supported.Any(f => f.FormatId.Equals(id, StringComparison.OrdinalIgnoreCase)))
+                return supported.First(f => f.FormatId.Equals(id, StringComparison.OrdinalIgnoreCase)).FormatId;
+        }
+
+        return null;
     }
 
     private static string Sanitize(string name)
